@@ -1434,7 +1434,7 @@ class zpoker:
 #print diffs_order[diffs_order[small_idx_list,0],0]
                     #print diffs_order[diffs_order[small_idx_list,0],1]
                     
-                print "smallest", small, small_idx_list, "loopcount:", lc
+                print "smallest", small, len(small_idx_list), "loopcount:", lc
                 lc += 1
                 small_idx = -1
                 small_2 = 1000000000
