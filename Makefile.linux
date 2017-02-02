@@ -1,0 +1,176 @@
+OPTIM = -O3 -m32 -arch i386 -mmmx -msse2 -mfpmath=sse
+OPTIM = -O3
+OPTIM1 = -O3 -fprofile-generate
+OPTIM2 = -O3 -fprofile-use
+#OPTIM = $(OPTIM2)
+#CFLAGS2 = -g -pg -m32 -std=gnu99 -arch i386 -fprofile-generate -ftest-coverage -Wall  -L/usr/local/cuda/lib -I/usr/local/include/poker-eval/ -lm
+
+#CC = llvm-gcc
+CC = gcc
+INCLUDE = -I/usr/local/include/poker-eval/ -I/opt/local/include/
+
+
+#CFLAGS2 = $(OPTIM) -g  -arch x86_64 -march=core2 -std=gnu99 -Wall -L/usr/local/cuda/lib $(INCLUDE) -lm
+#CFLAGS2 = -g -arch x86_64 -march=core2 -std=gnu99 -Wall  -L/usr/local/cuda/lib $(INCLUDE) -lm
+#SHARED_LIB = -dynamic #OSX
+#SHARED_LIB_END = .dylib #OSX
+
+CFLAGS2 = -g -O3 -m64 -march=native -mtune=native -std=gnu99 -Wall  $(INCLUDE)  -lm -lgsl -lgslcblas #LINUX
+#CFLAGS2 = -g -m64 -march=native -mtune=native -std=gnu99 -Wall  $(INCLUDE) -lm -lgsl -lgslcblas #LINUX
+SHARED_LIB = -shared #LINUX
+SHARED_LIB_END = .so #LINUX
+
+
+all:
+
+	make libzpoker
+	make libplrmodel
+
+debug:
+	make libzpoker
+	make libplrmodel
+
+bit_test: bit_test.c
+	$(CC) $(CFLAGS2) -o bit_test bit_test.c
+
+plrmodel_test: plrmodel_test.o plrmodel.o
+	$(CC) $(CFLAGS2) -o plrmodel_test plrmodel_test.o plrmodel.o
+
+plrmodel_test.o: plrmodel_test.c plrmodel.h
+	$(CC) $(CFLAGS2) -c plrmodel_test.c
+
+plrmodel_paths.o: plrmodel_paths.c plrmodel_paths.h
+	$(CC) $(CFLAGS2) -c plrmodel_paths.c
+
+plrmodel.o: plrmodel.c plrmodel.h
+	$(CC) $(CFLAGS2) -fPIC -c plrmodel.c
+
+cuda.cu.o: cuda.cu cuda.h
+	nvcc --host-compilation=c --compiler-options '-fPIC' -c cuda.cu
+
+handval.o: handval.c handval.h defs.h types.h precalc_conversions.h
+	$(CC) $(CFLAGS2) -fPIC -c handval.c
+
+types.o: types.c types.h defs.h handval.h precalc_conversions.h
+	$(CC) $(CFLAGS2) -fPIC -c types.c
+
+precalc_conversions.o: precalc_conversions.c precalc_conversions.h
+	$(CC) $(CFLAGS2) -fPIC -c precalc_conversions.c
+
+bit.o: bit.c bit.h
+	$(CC) $(CFLAGS2) -fPIC -c bit.c
+
+queue.o: queue.c queue.h
+	$(CC) $(CFLAGS2) -fPIC -c queue.c
+
+zbtree.o: zbtree.c zbtree.h
+	$(CC) $(CFLAGS2) -fPIC -c zbtree.c
+
+zconv.o: zconv.c zconv.h
+	$(CC) $(CFLAGS2) -fPIC -c zconv.c
+
+worker.o: worker.c worker.h
+	$(CC) $(CFLAGS2) -fPIC -c worker.c
+
+libzpoker.o: handval.c handval.h types.c defs.h types.h
+	 $(CC) $(CFLAGS2) -fPIC -c handval.c types.c
+
+libzpoker: handval.o types.o precalc_conversions.o worker.o queue.o zbtree.o zconv.o bit.o plrmodel.o
+#	$(CC) $(CFLAGS2) -fPIC -c handval.c types.c precalc_conversions.c
+	$(CC) $(CFLAGS2) $(SHARED_LIB) -o libzpoker$(SHARED_LIB_END) handval.o types.o precalc_conversions.o worker.o queue.o zbtree.o zconv.o bit.o plrmodel.o -lpoker-eval -lm -lgsl -lgslcblas
+
+#	$(CC) $(CFLAGS2) -dynamiclib -o libzpoker.dylib handval.o types.o precalc_conversions.o cuda.o -lpoker-eval -lcuda -lcudart
+
+libplrmodel: plrmodel.o handval.o precalc_conversions.o bit.o
+#	$(CC) $(CFLAGS2) -fPIC -c plrmodel.c
+#	$(CC) $(CFLAGS2) -fPIC -c plrmodel_paths.c
+#	$(CC) $(CFLAGS2) -fPIC -c plrmodel_cmd_list.c
+	$(CC) $(CFLAGS2) -dynamiclib -o libplrmodel.dylib plrmodel.o handval.o precalc_conversions.o bit.o -lpoker-eval #plrmodel_paths.o plrmodel_cmd_list.o
+
+calc_flop_types.o: calc_flop_types.c defs.h handval.h types.h
+	$(CC) $(CFLAGS2) -c calc_flop_types.c
+
+calc_flop_types: calc_flop_types.o handval.o types.o
+	$(CC) $(CFLAGS2) -o calc_flop_types calc_flop_types.o handval.o types.o -lpoker-eval
+
+calc_turn_types.o: calc_turn_types.c defs.h handval.h types.h
+	$(CC) $(CFLAGS2) -c calc_turn_types.c
+
+calc_turn_types: calc_turn_types.o handval.o types.o
+	$(CC) $(CFLAGS2) -o calc_turn_types calc_turn_types.o handval.o types.o -lpoker-eval
+
+calc_preflop_types.o: handval.h defs.h types.h calc_preflop_types.c
+	$(CC) $(CFLAGS2) -c calc_preflop_types.c
+
+calc_preflop_types: calc_preflop_types.o handval.o types.o
+	$(CC) $(CFLAGS2) -o calc_preflop_types calc_preflop_types.o types.o handval.o -lpoker-eval
+
+
+types: types.o
+	$(CC) $(CFLAGS2) -o types types.o handval.o -lpoker-eval
+
+precalc_preflop_slots.o: handval.h precalc_preflop_slots.c defs.h types.h
+	$(CC) $(CFLAGS2) -c precalc_preflop_slots.c
+
+precalc_preflop_slots: precalc_preflop_slots.o types.o handval.o 
+	$(CC) $(CFLAGS2) -o precalc_preflop_slots precalc_preflop_slots.o types.o handval.o -lpoker-eval
+
+
+precalc_flop_slots.o: handval.o precalc_flop_slots.c
+	$(CC) $(CFLAGS2) -c precalc_flop_slots.c
+
+precalc_flop_slots: precalc_flop_slots.o types.o
+	$(CC) $(CFLAGS2) -o precalc_flop_slots precalc_flop_slots.o types.o handval.o -lpoker-eval
+
+precalc_turn_slots.o: handval.o precalc_turn_slots.c
+	$(CC) $(CFLAGS2) -c precalc_turn_slots.c
+
+precalc_turn_slots: precalc_turn_slots.o types.o
+	$(CC) $(CFLAGS2) -o precalc_turn_slots precalc_turn_slots.o types.o handval.o -lpoker-eval
+
+precalc_turn_river.o: handval.o precalc_turn_river.c
+	$(CC) $(CFLAGS2) -c precalc_turn_river.c
+
+precalc_turn_river: precalc_turn_river.o types.o handval.o
+	$(CC) $(CFLAGS2) -o precalc_turn_river precalc_turn_river.o types.o handval.o -lpoker-eval
+
+precalc_flop_turn.o: handval.o precalc_flop_turn.c
+	$(CC) $(CFLAGS2) -c precalc_flop_turn.c
+
+precalc_flop_turn: precalc_flop_turn.o types.o handval.o
+	$(CC) $(CFLAGS2) -o precalc_flop_turn precalc_flop_turn.o types.o handval.o -lpoker-eval
+
+precalc_preflop_flop.o: handval.o precalc_preflop_flop.c
+	$(CC) $(CFLAGS2) -c precalc_preflop_flop.c
+
+precalc_preflop_flop: precalc_preflop_flop.o types.o handval.o
+	$(CC) $(CFLAGS2) -o precalc_preflop_flop precalc_preflop_flop.o types.o handval.o -lpoker-eval
+
+ev_calc.o: handval.o ev_calc.c
+	$(CC) $(CFLAGS2) -c ev_calc.c
+
+ev_calc: ev_calc.o types.o handval.o
+	$(CC) $(CFLAGS2) -o ev_calc types.o handval.o ev_calc.o -lpoker-eval
+
+ai_tester.o: handval.o ai_tester.c
+	$(CC) $(CFLAGS2) -c ai_tester.c
+
+ai_tester: ai_tester.o types.o handval.o
+	$(CC) $(CFLAGS2) -o ai_tester types.o handval.o ai_tester.o -lpoker-eval
+
+ai_tester2.o: handval.o ai_tester2.c
+	$(CC) $(CFLAGS2) -c ai_tester2.c
+
+ai_tester2: ai_tester2.o types.o handval.o
+	$(CC) $(CFLAGS) -o ai_tester2 types.o handval.o ai_tester2.o -lpoker-eval
+
+ai.o: handval.o ai.c
+	$(CC) $(CFLAGS2) -c ai.c
+
+ai: ai.o types.o handval.o
+	$(CC) $(CFLAGS2) -o ai types.o handval.o ai.o -lpoker-eval
+clean:
+	rm *.o
+
+
+

@@ -1,0 +1,94 @@
+OPTIM = -O3 -m32 -arch i386 -mmmx -msse2 -mfpmath=sse
+OPTIM = -O3 -funroll-loops -fomit-frame-pointer -fstrict-aliasing -momit-leaf-frame-pointer -fno-tree-pre -falign-loops -funsafe-loop-optimizations
+OPTIM1 = -O3 -fprofile-generate
+OPTIM2 = -O3 -fprofile-use
+#OPTIM = $(OPTIM2)
+#CFLAGS2 = -g -pg -m32 -std=gnu99 -arch i386 -fprofile-generate -ftest-coverage -Wall  -L/usr/local/cuda/lib -I/usr/local/include/poker-eval/ -lm
+
+#CC = llvm-gcc
+CC = gcc
+INCLUDE = -I/usr/local/include/poker-eval/ -I/opt/local/include/
+
+
+CFLAGS2 = $(OPTIM) -g -arch x86_64 -march=core2 -mtune=native -std=gnu99 -Wall -L/usr/local/cuda/lib $(INCLUDE) -lm -lgsl
+CFLAGS2_DEBUG = -g -arch x86_64 -march=core2 -mtune=native -std=gnu99 -Wall  -L/usr/local/cuda/lib $(INCLUDE) -lm -lgsl
+#CFLAGS2 = -g -arch x86_64 -march=core2 -mtune=native -std=gnu99 -Wall  -L/usr/local/cuda/lib $(INCLUDE) -lm -lgsl
+#SHARED_LIB = -dynamic #OSX
+SHARED_LIB_END = .dylib #OSX
+
+#CFLAGS2 = -g -m64 -march=core2 -std=gnu99 -Wall  $(INCLUDE) -lm #LINUX
+SHARED_LIB = -shared #LINUX
+#SHARED_LIB_END = .so #LINUX
+
+
+all:
+
+	make libzpoker
+	make libplrmodel
+
+debug:
+	make libzpoker
+	make libplrmodel
+
+br_if: br_if.c
+	#gcc -Wall -O3 -fPIC -shared -Wl br_if.c -o rgbr_zbot.dylib
+	gcc -arch x86_64 -m64 -Wall -g -fPIC -shared br_if.c br_if_bit.c -o rgbr_zbot.dylib
+
+bit_test: bit_test.c
+	$(CC) $(CFLAGS2) -o bit_test bit_test.c bit.c
+
+plrmodel.o: plrmodel.c plrmodel.h
+	$(CC) $(CFLAGS2) -fPIC -c plrmodel.c
+	$(CC) $(CFLAGS2_DEBUG) -fPIC -o plrmodel_debug.o -c plrmodel.c
+
+handval.o: handval.c handval.h defs.h types.h precalc_conversions.h
+	$(CC) $(CFLAGS2) -fPIC -c handval.c
+
+types.o: types.c types.h defs.h handval.h precalc_conversions.h
+	$(CC) $(CFLAGS2) -fPIC -c types.c
+
+precalc_conversions.o: precalc_conversions.c precalc_conversions.h
+	$(CC) $(CFLAGS2) -fPIC -c precalc_conversions.c
+
+bit.o: bit.c bit.h
+	$(CC) $(CFLAGS2) -fPIC -c bit.c
+
+queue.o: queue.c queue.h
+	$(CC) $(CFLAGS2) -fPIC -c queue.c
+
+zbtree.o: zbtree.c zbtree.h
+	$(CC) $(CFLAGS2) -fPIC -c zbtree.c
+
+zconv.o: zconv.c zconv.h
+	$(CC) $(CFLAGS2) -fPIC -c zconv.c
+
+worker.o: worker.c worker.h
+	$(CC) $(CFLAGS2) -fPIC -c worker.c
+
+perf_main.o: perf_main.c
+	$(CC) $(CFLAGS2) -c perf_main.c
+
+perf: perf_main.o precalc_conversions.o zbtree.o
+	$(CC) $(CFLAGS2) -o perf perf_main.o precalc_conversions.o zbtree.o -lpoker-eval
+
+libzpoker.o: handval.c handval.h types.c defs.h types.h
+	 $(CC) $(CFLAGS2) -fPIC -c handval.c types.c
+
+libzpoker: handval.o types.o precalc_conversions.o worker.o queue.o zbtree.o zconv.o bit.o plrmodel.o
+#	$(CC) $(CFLAGS2) -fPIC -c handval.c types.c precalc_conversions.c
+	$(CC) $(CFLAGS2) $(SHARED_LIB) -o libzpoker$(SHARED_LIB_END) handval.o types.o precalc_conversions.o worker.o queue.o zbtree.o zconv.o bit.o plrmodel.o -lpoker-eval
+
+#	$(CC) $(CFLAGS2) -dynamiclib -o libzpoker.dylib handval.o types.o precalc_conversions.o cuda.o -lpoker-eval -lcuda -lcudart
+
+
+
+types: types.o
+	$(CC) $(CFLAGS2) -o types types.o handval.o -lpoker-eval
+
+clean:
+	rm -f *.o
+	rm -f *~
+	rm -f *.pyc
+	rm -f \#*
+
+
